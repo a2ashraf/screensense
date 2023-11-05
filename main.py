@@ -1,12 +1,12 @@
 import os
+
+import openai
+import pytesseract
+from PIL import Image
 from pyngrok import ngrok
 from quart import Quart, request
-import openai
-from PIL import Image
-import pytesseract
-from io import BytesIO
 from telegram import Update, Bot
-from telegram.ext import CommandHandler, MessageHandler, CallbackContext
+
 from config import OPENAI_API_KEY, TELEGRAM_BOT_TOKEN
 
 # Initialize Quart app
@@ -48,7 +48,7 @@ class ImageProcessor:
     def __init__(self, bot: TelegramBot):
         self.bot = bot
 
-    async def summarize(self, image: Image, chat_id: int) -> str:
+    async def summarize(self, image: Image) -> str:
         await self.bot.send_message(message=MESSAGES['working'])
 
         try:
@@ -124,11 +124,11 @@ async def webhook():
     if file_id:
         image = await get_image_from_file_id(file_id, bot_instance)
         file_name = f"./saved_image_{file_id}.png"
-        image.save(file_name)
 
         try:
-            # Summarize the image and send the summary back to the user
-            summary = await image_processor.summarize(image, chat_id)
+            image.verify()
+            screenshot = Image.open(file_name)
+            summary = await image_processor.summarize(screenshot)
             if MESSAGES['error_processing_image'] in summary:
                 await bot_instance.send_message(message=summary + " \n\n_Error Found in image_ - *Please try again*")
                 return 'OK'
@@ -141,6 +141,20 @@ async def webhook():
             os.remove(file_name)
 
     return 'OK'
+
+
+async def testme():
+    bot_instance = TelegramBot(bot_token)
+    image_processor = ImageProcessor(bot_instance)
+    file_name = f"./saved_image_{1}.png"
+    screenshot = Image.open(file_name)
+    try:
+        screenshot.verify()
+        image = Image.open(file_name)
+        # image.save('saved_image_2.png')# Reload the image after verifying
+        summary = await image_processor.summarize(image)
+    except Exception as e:
+        print(f"Invalid image: {e}")
 
 
 async def get_image_from_file_id(file_id, bot: TelegramBot):
@@ -161,3 +175,4 @@ if __name__ == '__main__':
     hook_url = f"https://api.telegram.org/bot{bot_token}/setWebhook?url={url}/webhook"
     print(' * Tunnel URL:', hook_url)
     app.run(port=PORT, debug=True)
+    # asyncio.run(testme())
